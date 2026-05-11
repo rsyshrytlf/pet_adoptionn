@@ -1,6 +1,7 @@
 import { Outlet, Link, useNavigate, useLocation } from 'react-router';
 import { useAuth } from '../context/AuthContext';
 import { useCart } from '../context/useCart';
+import { useIdleTimeout } from '../hooks/useIdleTimeout';
 import { motion } from 'motion/react';
 import { Home, Heart, Calendar, ShoppingBag, ShoppingCart, ClipboardList, LogIn, LogOut, User, MessageCircle, Menu, X } from 'lucide-react';
 import { Button } from './ui/button';
@@ -13,6 +14,9 @@ export default function Layout() {
   const location = useLocation();
   const [showLogoutDialog, setShowLogoutDialog] = useState(false);
   const [showMobileMenu, setShowMobileMenu] = useState(false);
+
+  // Jalankan pemantauan aktivitas (idle timeout) di seluruh layout (termasuk admin)
+  useIdleTimeout();
 
   const isAdminRoute = location.pathname.startsWith('/admin');
   const closeMobileMenu = () => setShowMobileMenu(false);

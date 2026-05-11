@@ -1,4 +1,4 @@
-﻿/// <reference types="vite/client" />
+/// <reference types="vite/client" />
 
 import { mockProducts } from '../data/mockData';
 import { emitDataChanged } from '../hooks/useLiveRefresh';
@@ -8,19 +8,40 @@ const BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000/api
 const networkErrorMessage = () =>
   `Tidak dapat terhubung ke server. Pastikan backend Laravel berjalan dan alamat API benar (${BASE_URL}).`;
 
-// Helper utama untuk request ke backend dan mengubah error teknis menjadi pesan yang lebih mudah dibaca.
 const requestJson = async <T = any>(url: string, options?: RequestInit): Promise<T> => {
   let res: Response;
 
+  // Coba ambil token dari localStorage
+  const savedUser = localStorage.getItem('currentUser');
+  let token = '';
+  if (savedUser) {
+    try {
+      const userObj = JSON.parse(savedUser);
+      if (userObj.token) token = userObj.token;
+    } catch (e) {}
+  }
+
+  const headers: HeadersInit = options?.body instanceof FormData
+    ? { ...options.headers }
+    : { 'Content-Type': 'application/json', 'Accept': 'application/json', ...options?.headers };
+
+  if (token) {
+    (headers as any)['Authorization'] = `Bearer ${token}`;
+  }
+
   try {
     res = await fetch(url, {
-      headers: options?.body instanceof FormData
-        ? options.headers
-        : { 'Content-Type': 'application/json', 'Accept': 'application/json', ...options?.headers },
+      headers,
       ...options,
     });
   } catch {
     throw new Error(networkErrorMessage());
+  }
+
+  if (res.status === 401) {
+    // Token tidak valid atau kadaluwarsa, paksa logout
+    window.dispatchEvent(new Event('auth_unauthorized'));
+    throw new Error('Sesi Anda telah berakhir. Silakan login kembali.');
   }
 
   const data = await res.json().catch(() => ({}));
@@ -221,4 +242,13 @@ export const resetPasswordWithOtp = async (data: {
     method: 'POST',
     body: JSON.stringify(data),
   });
+};
+
+// Menghapus token di backend (Sanctum)
+export const logoutApi = async () => {
+  try {
+    await requestJson(`${BASE_URL}/logout`, { method: 'POST' });
+  } catch (error) {
+    // Abaikan error jika token sudah tidak valid
+  }
 };

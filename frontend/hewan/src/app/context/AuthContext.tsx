@@ -50,17 +50,33 @@ interface AuthProviderProps {
 }
 
 export const AuthProvider = ({ children }: AuthProviderProps) => {
-  const [user, setUser] = useState<User | null>(() => {
+  const [user, setUser] = useState<User & { token?: string } | null>(() => {
     const savedUser = localStorage.getItem('currentUser');
     if (savedUser) {
       try {
-        return JSON.parse(savedUser);
+        const parsed = JSON.parse(savedUser);
+        // Otomatis bersihkan cache jika itu sesi lama (sebelum ada sistem token)
+        if (!parsed.token) {
+          localStorage.removeItem('currentUser');
+          localStorage.removeItem('cart');
+          return null;
+        }
+        return parsed;
       } catch {
         return null;
       }
     }
     return null;
   });
+
+  // Listener untuk 401 Unauthorized dari api.ts
+  useEffect(() => {
+    const handleUnauthorized = () => {
+      logout();
+    };
+    window.addEventListener('auth_unauthorized', handleUnauthorized);
+    return () => window.removeEventListener('auth_unauthorized', handleUnauthorized);
+  }, []);
 
   // Login user biasa — hit ke backend API
   const login = async (email: string, password: string): Promise<boolean> => {
@@ -78,17 +94,19 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
 
       const data = await res.json();
       const apiUser = data.user;
+      const token = data.token;
 
       // Tolak jika role-nya admin (user biasa tidak boleh login di sini)
       if (apiUser.role === 'admin') return false;
 
-      const loggedInUser: User = {
+      const loggedInUser = {
         id: String(apiUser.id),
         email: apiUser.email,
         name: apiUser.name ?? normalizedEmail,
         address: apiUser.address ?? '',
         phone: apiUser.phone ?? '',
         isAdmin: false,
+        token: token,
       };
 
       setUser(loggedInUser);
@@ -134,16 +152,18 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
 
       const data = await res.json();
       const apiUser = data.user;
+      const token = data.token;
 
       if (apiUser.role !== 'admin') return loginLocalAdmin();
 
-      const adminUser: User = {
+      const adminUser = {
         id: String(apiUser.id),
         email: apiUser.email,
         name: apiUser.name ?? 'Administrator',
         address: '',
         phone: '',
         isAdmin: true,
+        token: token,
       };
 
       setUser(adminUser);
@@ -187,13 +207,16 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
       }
 
       const apiUser = data.user;
-      const newUser: User = {
+      const token = data.token;
+
+      const newUser = {
         id: String(apiUser.id),
         email: apiUser.email,
         name: apiUser.name,
         address: address,
         phone: phone,
         isAdmin: false,
+        token: token,
       };
 
       setUser(newUser);
@@ -208,6 +231,18 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
   };
 
   const logout = () => {
+    // Panggil fungsi logout di api untuk menghapus token di backend, tanpa perlu ditunggu (fire-and-forget)
+    if (user && user.token) {
+      fetch(`${API_BASE}/logout`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${user.token}`,
+          'Accept': 'application/json'
+        }
+      }).catch(() => {});
+    }
+
     setUser(null);
     localStorage.removeItem('currentUser');
     localStorage.removeItem('cart'); // Bersihkan keranjang saat logout
