@@ -38,7 +38,11 @@ export default function Home() {
   useEffect(() => {
     fetchReviews();
   }, []);
-  useLiveRefresh(fetchReviews, ['reviews', 'orders'], 10000, []);
+  // useLiveRefresh(fetchReviews, ['reviews', 'orders'], 10000, []);
+
+  useEffect(() => {
+  fetchReviews();
+}, []);
 
   return (
     <div className="space-y-16">
@@ -56,11 +60,11 @@ export default function Home() {
           Memberikan harapan baru bagi hewan-hewan terlantar untuk menemukan rumah dan kasih sayang yang layak 🐾
           </p>
 
-          {/*berhenti hewan*/}
+          {/* berhenti hewan
         <div className="flex justify-center gap-4 text-4xl mb-8 sm:gap-8 sm:text-6xl">
   <div>😺</div>
   <div>🐶</div>
-</div>
+</div> */}
 
           <Link to="/adopsi">
             <Button size="lg" className="bg-gradient-to-r from-pink-500 to-purple-500 text-white text-xl px-8 py-6">
