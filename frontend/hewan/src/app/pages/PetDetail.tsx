@@ -55,6 +55,8 @@ export default function PetDetail() {
   const [bookingPaymentProof, setBookingPaymentProof] = useState<string>('');
   const [bookingDelivery, setBookingDelivery] = useState<'pickup' | 'delivery'>('pickup');
   const [isEdit, setIsEdit] = useState(false);
+  const [adoptingLoading, setAdoptingLoading] = useState(false);
+  const [bookingLoading, setBookingLoading] = useState(false);
 
   const [formUser, setFormUser] = useState({
     name: user?.name || '',
@@ -182,6 +184,7 @@ export default function PetDetail() {
 
   const confirmBooking = async () => {
     let petWasBooked = false;
+    setBookingLoading(true);
     try {
       await updatePet(pet.id, { status: 'booked' });
       petWasBooked = true;
@@ -189,7 +192,7 @@ export default function PetDetail() {
       const uniqueCode = 'BKG' + Date.now().toString().slice(-8);
       const currentUser = JSON.parse(localStorage.getItem('currentUser') || '{}');
       const deliveryFee = bookingDelivery === 'delivery' ? 50000 : 0;
-      const expiresAt = Date.now() + 24 * 60 * 60 * 1000; // 24 hours
+      const expiresAt = Date.now() + 24 * 60 * 60 * 1000;
 
       await createOrder({
         id: uniqueCode,
@@ -238,6 +241,8 @@ export default function PetDetail() {
         updatePet(pet.id, { status: 'available' }).catch(console.error);
       }
       showAlert(err.message || 'Gagal melakukan booking. Coba lagi.', 'error', 'Error');
+    } finally {
+      setBookingLoading(false);
     }
   };
 
@@ -262,6 +267,7 @@ export default function PetDetail() {
       return;
     }
 
+    setAdoptingLoading(true);
     try {
       await updatePet(pet.id, { status: 'booked' });
     } catch (e) {
@@ -269,7 +275,6 @@ export default function PetDetail() {
     }
 
     try {
-      // Upload the image first
       const uploadedProofUrl = await uploadImage(paymentProofFile);
 
       const uniqueCode = 'MPH' + Date.now().toString().slice(-8);
@@ -315,6 +320,8 @@ export default function PetDetail() {
     } catch (err: any) {
       console.error(err);
       showAlert(err.message || 'Gagal melakukan adopsi. Coba lagi.', 'error', 'Error');
+    } finally {
+      setAdoptingLoading(false);
     }
   };
 
@@ -553,8 +560,17 @@ export default function PetDetail() {
               )}
             </div>
 
-            <Button onClick={confirmAdoption} className="w-full bg-gradient-to-r from-pink-500 to-purple-500" size="lg">
-              <CheckCircle className="mr-2" /> Konfirmasi Adopsi
+            <Button
+              onClick={confirmAdoption}
+              className="w-full bg-gradient-to-r from-pink-500 to-purple-500"
+              size="lg"
+              disabled={adoptingLoading}
+            >
+              {adoptingLoading ? (
+                <><Loader2 className="mr-2 animate-spin" size={18} /> Memproses...</>
+              ) : (
+                <><CheckCircle className="mr-2" /> Konfirmasi Adopsi</>
+              )}
             </Button>
           </div>
         </DialogContent>
@@ -612,8 +628,13 @@ export default function PetDetail() {
               onClick={confirmBooking}
               className="w-full bg-gradient-to-r from-yellow-500 to-orange-500 hover:from-yellow-600 hover:to-orange-600"
               size="lg"
+              disabled={bookingLoading}
             >
-              <CheckCircle className="mr-2" size={18} /> Konfirmasi Booking
+              {bookingLoading ? (
+                <><Loader2 className="mr-2 animate-spin" size={18} /> Memproses...</>
+              ) : (
+                <><CheckCircle className="mr-2" size={18} /> Konfirmasi Booking</>
+              )}
             </Button>
           </div>
         </DialogContent>

@@ -30,6 +30,19 @@ export default function Adoption() {
   const [searchQuery, setSearchQuery] = useState('');
   const navigate = useNavigate();
   const { user } = useAuth();
+  const [navigatingId, setNavigatingId] = useState<number | null>(null);
+  const [navigatingAction, setNavigatingAction] = useState<'detail' | 'adopt' | null>(null);
+
+  const goTo = (petId: number, action: 'detail' | 'adopt') => {
+    if (navigatingId !== null) return; // cegah klik ganda
+    setNavigatingId(petId);
+    setNavigatingAction(action);
+    if (action === 'adopt') {
+      navigate(`/adopsi/${petId}`, { state: { autoAdopt: true } });
+    } else {
+      navigate(`/adopsi/${petId}`);
+    }
+  };
 
   useEffect(() => {
     fetchPets();
@@ -211,15 +224,25 @@ export default function Adoption() {
                       <Button
                         variant="outline"
                         className="flex-1 border-purple-300 text-purple-600 hover:bg-purple-50"
-                        onClick={() => navigate(`/adopsi/${pet.id}`)}
+                        onClick={() => goTo(pet.id, 'detail')}
+                        disabled={navigatingId === pet.id}
                       >
-                        <Eye className="mr-2" size={18} /> Lihat Detail
+                        {navigatingId === pet.id && navigatingAction === 'detail' ? (
+                          <><Loader2 className="mr-2 animate-spin" size={18} /> Membuka...</>
+                        ) : (
+                          <><Eye className="mr-2" size={18} /> Lihat Detail</>
+                        )}
                       </Button>
                       <Button
                         className="flex-1 bg-gradient-to-r from-pink-500 to-purple-500 text-white"
-                        onClick={() => navigate(`/adopsi/${pet.id}`, { state: { autoAdopt: true } })}
+                        onClick={() => goTo(pet.id, 'adopt')}
+                        disabled={navigatingId === pet.id}
                       >
-                        <Heart className="mr-2" size={18} /> Adopsi
+                        {navigatingId === pet.id && navigatingAction === 'adopt' ? (
+                          <><Loader2 className="mr-2 animate-spin" size={18} /> Membuka...</>
+                        ) : (
+                          <><Heart className="mr-2" size={18} /> Adopsi</>
+                        )}
                       </Button>
                     </div>
                   ) : (

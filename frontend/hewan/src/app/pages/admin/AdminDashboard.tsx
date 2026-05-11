@@ -8,6 +8,7 @@ import {
   Bell, ShoppingBag, X, CheckCheck, ChevronRight,
 } from 'lucide-react';
 import { useAdminNotifications } from '../../hooks/useAdminNotifications';
+import { AdminDataProvider } from '../../context/AdminDataContext';
 
 export default function AdminDashboard() {
   const { isAdmin, logout } = useAuth();
@@ -314,9 +315,12 @@ export default function AdminDashboard() {
             </nav>
           </aside>
 
-          {/* MAIN */}
+          {/* MAIN — dibungkus AdminDataProvider agar semua halaman admin
+              berbagi cache data yang sama tanpa fetch ulang saat pindah tab */}
           <main className="lg:col-span-5">
-            <Outlet />
+            <AdminDataProvider>
+              <Outlet />
+            </AdminDataProvider>
           </main>
 
         </div>

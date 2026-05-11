@@ -1,38 +1,16 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { Order, Reservation } from '../../types';
 import { Card, CardContent, CardHeader, CardTitle } from '../../components/ui/card';
 import { TrendingUp, TrendingDown, DollarSign, ShoppingCart, Calendar, Package } from 'lucide-react';
 import { format, startOfMonth, endOfMonth, isWithinInterval } from 'date-fns';
 import { id as idLocale } from 'date-fns/locale';
 
-import { getOrders, getReservations } from '../../services/api';
-import { useLiveRefresh } from '../../hooks/useLiveRefresh';
+import { useAdminData } from '../../context/AdminDataContext';
 
 export default function AdminReports() {
-  const [orders, setOrders] = useState<Order[]>([]);
-  const [reservations, setReservations] = useState<Reservation[]>([]);
+  // Ambil data dari shared cache — tidak fetch ulang saat pindah tab
+  const { orders, reservations } = useAdminData();
   const [selectedMonth, setSelectedMonth] = useState(new Date());
-
-  const fetchData = async () => {
-    try {
-      const fetchedOrders = await getOrders();
-      setOrders(fetchedOrders);
-    } catch (error) {
-      console.error("Gagal memuat pesanan:", error);
-    }
-
-    try {
-      const fetchedReservations = await getReservations();
-      setReservations(fetchedReservations);
-    } catch (error) {
-      console.error("Gagal memuat reservasi:", error);
-    }
-  };
-
-  useEffect(() => {
-    fetchData();
-  }, []);
-  useLiveRefresh(fetchData, ['orders', 'reservations'], 8000, []);
 
   const monthStart = startOfMonth(selectedMonth);
   const monthEnd = endOfMonth(selectedMonth);

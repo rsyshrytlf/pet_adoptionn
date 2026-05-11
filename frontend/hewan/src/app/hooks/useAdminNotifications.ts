@@ -1,6 +1,9 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { getOrders, getReservations } from '../services/api';
 
+// Nama event yang sama dengan useLiveRefresh agar bisa listen event-driven changes
+const DATA_CHANGED_EVENT = 'meowmyhome:data-changed';
+
 export interface AdminNotification {
   id: string;
   type: 'order' | 'reservation' | 'review';
@@ -13,8 +16,8 @@ export interface AdminNotification {
 
 const STORAGE_KEY = 'admin_notifications_seen';
 const TOASTED_STORAGE_KEY = 'admin_notifications_toasted';
-// 2 detik = terasa instan, tidak membebani server secara berlebihan
-const POLL_INTERVAL = 2000;
+// 3 detik = cukup responsif, tidak membebani server
+const POLL_INTERVAL = 3000;
 
 function getSeenIds(): Set<string> {
   try {
@@ -49,29 +52,32 @@ async function scanNewData(): Promise<AdminNotification[]> {
   const notifications: AdminNotification[] = [];
   const seenIds = getSeenIds();
 
-  // ── ORDERS ──
+  // ── Fetch ORDERS sekali, gunakan untuk order notif & review notif sekaligus ──
+  let orders: any[] = [];
   try {
-    const orders = await getOrders();
-    for (const o of orders) {
-      if (INACTIVE_ORDER_STATUS.has(o.status)) continue;
-      const notifId = `order_${o.id}`;
-      if (!seenIds.has(notifId)) {
-        const typeLabel =
-          o.orderType === 'adoption' ? 'Adopsi Hewan'
-          : o.orderType === 'grooming' ? 'Grooming'
-          : 'Produk';
-        notifications.push({
-          id: notifId,
-          type: 'order',
-          title: `🛒 Pesanan Baru — ${typeLabel}`,
-          message: `${o.userName || o.userData?.name || 'User'} • Kode: ${o.uniqueCode}`,
-          timestamp: new Date(o.createdAt).getTime() || Date.now(),
-          read: false,
-          path: '/admin/pesanan',
-        });
-      }
-    }
+    orders = await getOrders();
   } catch { /* skip */ }
+
+  // ── ORDERS ──
+  for (const o of orders) {
+    if (INACTIVE_ORDER_STATUS.has(o.status)) continue;
+    const notifId = `order_${o.id}`;
+    if (!seenIds.has(notifId)) {
+      const typeLabel =
+        o.orderType === 'adoption' ? 'Adopsi Hewan'
+        : o.orderType === 'grooming' ? 'Grooming'
+        : 'Produk';
+      notifications.push({
+        id: notifId,
+        type: 'order',
+        title: `🛒 Pesanan Baru — ${typeLabel}`,
+        message: `${o.userName || o.userData?.name || 'User'} • Kode: ${o.uniqueCode}`,
+        timestamp: new Date(o.createdAt).getTime() || Date.now(),
+        read: false,
+        path: '/admin/pesanan',
+      });
+    }
+  }
 
   // ── RESERVATIONS ──
   try {
@@ -94,25 +100,22 @@ async function scanNewData(): Promise<AdminNotification[]> {
     }
   } catch { /* skip */ }
 
-  // ── REVIEWS ──
-  try {
-    const orders = await getOrders();
-    for (const o of orders) {
-      if (!o.review || o.review.approved === true) continue;
-      const notifId = `review_${o.id}`;
-      if (!seenIds.has(notifId)) {
-        notifications.push({
-          id: notifId,
-          type: 'review',
-          title: `⭐ Review Baru — Menunggu Persetujuan`,
-          message: `${o.userName || o.userData?.name || 'User'} • ${o.review.rating} bintang`,
-          timestamp: Date.now(),
-          read: false,
-          path: '/admin/review',
-        });
-      }
+  // ── REVIEWS — reuse orders yang sudah di-fetch ──
+  for (const o of orders) {
+    if (!o.review || o.review.approved === true) continue;
+    const notifId = `review_${o.id}`;
+    if (!seenIds.has(notifId)) {
+      notifications.push({
+        id: notifId,
+        type: 'review',
+        title: `⭐ Review Baru — Menunggu Persetujuan`,
+        message: `${o.userName || o.userData?.name || 'User'} • ${o.review.rating} bintang`,
+        timestamp: Date.now(),
+        read: false,
+        path: '/admin/review',
+      });
     }
-  } catch { /* skip */ }
+  }
 
   return notifications.sort((a, b) => b.timestamp - a.timestamp);
 }
@@ -160,20 +163,37 @@ export function useAdminNotifications() {
     } catch { /* skip */ }
   }, []);
 
-  // Jalankan polling setiap 2 detik
+  // Jalankan polling setiap 3 detik + langsung saat ada data-changed event
   useEffect(() => {
     poll(); // langsung cek saat pertama mount
     intervalRef.current = setInterval(poll, POLL_INTERVAL);
 
-    // Tab kembali aktif → cek langsung
+    // Sinyal dari TAB YANG SAMA (CustomEvent)
+    const handleDataChanged = () => poll();
+    window.addEventListener(DATA_CHANGED_EVENT, handleDataChanged);
+
+    // Sinyal dari TAB BERBEDA (StorageEvent) — ini yang paling penting untuk review!
+    // Saat user submit review di tab user, emitDataChanged menulis ke localStorage.
+    // Tab admin mendeteksinya lewat 'storage' event dan langsung poll.
+    const handleStorage = (e: StorageEvent) => {
+      if (e.key === 'meowmyhome:data-changed-at' && e.newValue) poll();
+    };
+    window.addEventListener('storage', handleStorage);
+
+    // Tab kembali fokus / aktif → cek langsung sebagai fallback
     const handleVisible = () => {
       if (document.visibilityState === 'visible') poll();
     };
+    const handleFocus = () => poll();
     document.addEventListener('visibilitychange', handleVisible);
+    window.addEventListener('focus', handleFocus);
 
     return () => {
       if (intervalRef.current) clearInterval(intervalRef.current);
+      window.removeEventListener(DATA_CHANGED_EVENT, handleDataChanged);
+      window.removeEventListener('storage', handleStorage);
       document.removeEventListener('visibilitychange', handleVisible);
+      window.removeEventListener('focus', handleFocus);
     };
   }, [poll]);
 

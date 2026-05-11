@@ -9,10 +9,11 @@ import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
 import { Label } from '../components/ui/label';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '../components/ui/dialog';
-import { Trash2, ShoppingBag, CheckCircle } from 'lucide-react';
+import { Trash2, ShoppingBag, CheckCircle, Loader2 } from 'lucide-react';
 import { Order } from '../types';
 import { useModalAlert } from '../components/ui/modal-alert';
 import { updatePet, createOrder, uploadImage } from '../services/api';
+import { emitDataChanged } from '../hooks/useLiveRefresh';
 import { getFallbackItemImage, getItemImage } from '../utils/itemImages';
 
 interface SuccessPopupState {
@@ -36,6 +37,7 @@ export default function Cart() {
   const [showCheckoutDialog, setShowCheckoutDialog] = useState(false);
   const [deliveryMethod, setDeliveryMethod] = useState<'pickup' | 'delivery'>('pickup');
   const [paymentProof, setPaymentProof] = useState<File | null>(null);
+  const [isCheckingOut, setIsCheckingOut] = useState(false);
   const [successPopup, setSuccessPopup] = useState<SuccessPopupState>({
     open: false,
     title: '',
@@ -93,6 +95,7 @@ export default function Cart() {
       return;
     }
 
+    setIsCheckingOut(true);
     try {
       const uniqueCode = 'MH' + Date.now().toString().slice(-8);
       const deliveryFee = deliveryMethod === 'delivery' ? 50000 : 0;
@@ -136,6 +139,9 @@ export default function Cart() {
         }))
       });
 
+      // Beritahu admin secara instan bahwa ada order baru — tidak perlu nunggu polling
+      emitDataChanged('orders');
+
       clearCart();
       setShowCheckoutDialog(false);
       setSuccessPopup({
@@ -148,6 +154,8 @@ export default function Cart() {
     } catch (err: any) {
       console.error(err);
       showAlert(err.message || 'Gagal memproses pesanan. Coba lagi.', 'error', 'Error');
+    } finally {
+      setIsCheckingOut(false);
     }
   };
 
@@ -572,11 +580,15 @@ export default function Cart() {
           <div className="sticky bottom-0 bg-white pt-4">
   <Button
     onClick={confirmCheckout}
+    disabled={isCheckingOut}
     className="w-full bg-gradient-to-r from-blue-500 to-purple-500"
     size="lg"
   >
-    <CheckCircle className="mr-2" />
-    Konfirmasi Pesanan
+    {isCheckingOut ? (
+      <><Loader2 className="mr-2 animate-spin" size={18} /> Memproses Pesanan...</>
+    ) : (
+      <><CheckCircle className="mr-2" /> Konfirmasi Pesanan</>
+    )}
   </Button>
 </div>
         </DialogContent>

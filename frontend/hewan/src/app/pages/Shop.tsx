@@ -41,6 +41,7 @@ export default function Shop() {
   const [quantities, setQuantities] = useState<{ [key: number]: number }>({});
   const [searchQuery, setSearchQuery] = useState('');
   const [cartNotice, setCartNotice] = useState('');
+  const [cartAddedIds, setCartAddedIds] = useState<Set<number>>(new Set());
   const [successPopup, setSuccessPopup] = useState<SuccessPopupState>({
     open: false,
     title: '',
@@ -131,6 +132,12 @@ const handleAddToCart = (product: ShopProduct) => {
 
   setCartNotice(`${product.name} (${quantity}x) masuk keranjang`);
   setTimeout(() => setCartNotice(''), 1800);
+
+  // Feedback visual: tombol berubah jadi "Ditambahkan ✓" selama 1.5 detik
+  setCartAddedIds(prev => new Set(prev).add(product.id));
+  setTimeout(() => {
+    setCartAddedIds(prev => { const s = new Set(prev); s.delete(product.id); return s; });
+  }, 1500);
 
   setQuantities(prev => ({
     ...prev,
@@ -412,8 +419,16 @@ const handleAddToCart = (product: ShopProduct) => {
                         </Button>
                       </div>
                       <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-                        <Button onClick={() => handleAddToCart(product)} className="bg-gradient-to-r from-blue-500 to-green-500 hover:from-blue-600 hover:to-green-600 text-xs sm:text-sm">
-                          <ShoppingCart className="mr-1" size={16} /> Keranjang
+                        <Button
+                          onClick={() => handleAddToCart(product)}
+                          disabled={cartAddedIds.has(product.id)}
+                          className={`text-xs sm:text-sm transition-all ${cartAddedIds.has(product.id) ? 'bg-green-500 hover:bg-green-500' : 'bg-gradient-to-r from-blue-500 to-green-500 hover:from-blue-600 hover:to-green-600'}`}
+                        >
+                          {cartAddedIds.has(product.id) ? (
+                            <><CheckCircle className="mr-1" size={16} /> Ditambahkan!</>
+                          ) : (
+                            <><ShoppingCart className="mr-1" size={16} /> Keranjang</>
+                          )}
                         </Button>
                         <Button
                           onClick={() => openCheckoutNow(product)}

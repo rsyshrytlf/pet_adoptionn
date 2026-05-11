@@ -12,7 +12,7 @@ import { id as idLocale } from 'date-fns/locale';
 import { Package, Calendar, Clock, CheckCircle, XCircle, Truck, Star, X, ImagePlus, Loader2, Upload, Search } from 'lucide-react';
 import { useModalAlert } from '../components/ui/modal-alert';
 import { updatePet, getOrders, updateOrder, uploadImage } from '../services/api';
-import { useLiveRefresh } from '../hooks/useLiveRefresh';
+import { useLiveRefresh, emitDataChanged } from '../hooks/useLiveRefresh';
 import { getFallbackItemImage, getItemImage } from '../utils/itemImages';
 
 export default function Activity() {
@@ -37,6 +37,7 @@ export default function Activity() {
   const [payOrderId, setPayOrderId] = useState<string | null>(null);
   const [paymentProofFile, setPaymentProofFile] = useState<File | null>(null);
   const [paymentProofPreview, setPaymentProofPreview] = useState<string>('');
+  const [submittingPayment, setSubmittingPayment] = useState(false);
 
   // Countdown Timer State: { orderId -> remaining ms }
   const [countdowns, setCountdowns] = useState<Record<string, number>>({});
@@ -284,6 +285,10 @@ export default function Activity() {
       
       setOrders(orders.map(o => o.id === reviewOrderId ? { ...o, review: reviewData } : o));
 
+      // Beritahu admin segera bahwa ada review baru — tidak perlu nunggu polling
+      emitDataChanged('reviews');
+      emitDataChanged('orders');
+
       setSubmittingReview(false);
       setReviewOrderId(null);
       setComment('');
@@ -316,13 +321,14 @@ export default function Activity() {
       showAlert('Silakan upload bukti transfer terlebih dahulu!', 'warning', 'Belum Lengkap');
       return;
     }
-    
+
+    setSubmittingPayment(true);
     try {
       const uploadedProofUrl = await uploadImage(paymentProofFile);
       await updateOrder(payOrderId!, { status: 'pending', payment_proof: uploadedProofUrl });
-      
+
       setOrders(orders.map(o => o.id === payOrderId ? { ...o, status: 'pending', paymentProof: uploadedProofUrl } : o));
-      
+
       setPayOrderId(null);
       setPaymentProofFile(null);
       setPaymentProofPreview('');
@@ -330,6 +336,8 @@ export default function Activity() {
     } catch (e: any) {
       console.error(e);
       showAlert(e.message || 'Gagal mengunggah pembayaran', 'error', 'Error');
+    } finally {
+      setSubmittingPayment(false);
     }
   };
 
@@ -864,10 +872,14 @@ export default function Activity() {
                 {/* Submit */}
                 <Button
                   onClick={submitPayment}
-                  disabled={!paymentProofFile}
+                  disabled={!paymentProofFile || submittingPayment}
                   className="w-full bg-gradient-to-r from-yellow-500 to-orange-500 hover:from-yellow-600 hover:to-orange-600 py-6 text-base shadow-md disabled:opacity-50"
                 >
-                  <CheckCircle className="mr-2" size={18} /> Konfirmasi Pembayaran
+                  {submittingPayment ? (
+                    <><Loader2 className="mr-2 animate-spin" size={18} /> Memproses...</>
+                  ) : (
+                    <><CheckCircle className="mr-2" size={18} /> Konfirmasi Pembayaran</>
+                  )}
                 </Button>
               </div>
             </motion.div>

@@ -10,7 +10,7 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } f
 import { Label } from '../components/ui/label';
 import { Input } from '../components/ui/input';
 import { Badge } from '../components/ui/badge';
-import { Calendar as CalendarIcon, Scissors, Home as HomeIcon, CheckCircle } from 'lucide-react';
+import { Calendar as CalendarIcon, Scissors, Home as HomeIcon, CheckCircle, Loader2 } from 'lucide-react';
 import { format, addDays, isAfter, isBefore, startOfDay } from 'date-fns';
 import { id as idLocale } from 'date-fns/locale';
 import { useModalAlert } from '../components/ui/modal-alert';
@@ -33,6 +33,7 @@ export default function Reservation() {
   const { showAlert, Modal } = useModalAlert();
   const [allReservations, setAllReservations] = useState<ReservationType[]>([]);
   const [groomingPackages, setGroomingPackages] = useState<GroomingPackage[]>([]);
+  const [submitting, setSubmitting] = useState(false);
 
   const adminFee = 25000;
   const groomingPrice = selectedPackage?.price || 0;
@@ -151,6 +152,7 @@ setShowError(true);
       return;
     }
 
+    setSubmitting(true);
     try {
       const imageUrl = await uploadImage(paymentProof);
 
@@ -169,7 +171,6 @@ setShowError(true);
         payment_proof: imageUrl,
         attended: false,
         created_at_timestamp: Date.now()
-        // user_address: reservationAddress // (jika backend sudah mendukung)
       };
 
       await createReservation(payload);
@@ -181,6 +182,8 @@ setShowError(true);
       setShowConfirmDialog(false);
       setErrorMsg(e.message || "Terjadi kesalahan saat memproses reservasi");
       setShowError(true);
+    } finally {
+      setSubmitting(false);
     }
   };
 
@@ -544,9 +547,13 @@ setShowError(true);
               onClick={confirmReservation}
               className="w-full bg-gradient-to-r from-purple-500 to-blue-500"
               size="lg"
+              disabled={submitting}
             >
-              <CheckCircle className="mr-2" />
-              Konfirmasi Reservasi
+              {submitting ? (
+                <><Loader2 className="mr-2 animate-spin" size={18} /> Memproses...</>
+              ) : (
+                <><CheckCircle className="mr-2" /> Konfirmasi Reservasi</>
+              )}
             </Button>
           </div>
         </DialogContent>

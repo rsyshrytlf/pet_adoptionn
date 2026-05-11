@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { Reservation } from '../../types';
 import { Card, CardContent, CardHeader, CardTitle } from '../../components/ui/card';
 import { Button } from '../../components/ui/button';
@@ -8,46 +8,25 @@ import { Calendar } from '../../components/ui/calendar';
 import { format } from 'date-fns';
 import { id as idLocale } from 'date-fns/locale';
 import { CheckCircle, XCircle, UserCheck, Eye, Search } from 'lucide-react';
-import { getReservations, updateReservation } from '../../services/api';
-import { useLiveRefresh } from '../../hooks/useLiveRefresh';
+import { updateReservation } from '../../services/api';
+import { emitDataChanged } from '../../hooks/useLiveRefresh';
+import { useAdminData } from '../../context/AdminDataContext';
 
 export default function AdminReservations() {
-  // reservations menyimpan semua data reservasi dari backend.
-  const [reservations, setReservations] = useState<Reservation[]>([]);
-
-  // selectedDate dipakai untuk filter reservasi berdasarkan tanggal kalender.
+  // Ambil data dari shared cache — tidak fetch ulang saat pindah tab
+  const { reservations, setReservations } = useAdminData();
   const [selectedDate, setSelectedDate] = useState<Date>();
-
-  // searchTerm menyimpan kata kunci pencarian admin.
   const [searchTerm, setSearchTerm] = useState('');
-
-  // previewImage dipakai untuk menampilkan bukti transfer dalam lightbox.
   const [previewImage, setPreviewImage] = useState<string | null>(null);
-
-  // Mengambil data reservasi terbaru dari API.
-  const loadReservations = async () => {
-    try {
-      const data = await getReservations();
-      setReservations(data);
-    } catch (e) {
-      console.error(e);
-    }
-  };
-
-  useEffect(() => {
-    loadReservations();
-  }, []);
-
-  // Refresh otomatis setiap 6 detik saat data reservations berubah.
-  useLiveRefresh(loadReservations, ['reservations'], 6000, []);
 
   // Mengubah status reservasi, misalnya pending menjadi confirmed/cancelled.
   const updateReservationStatus = async (reservationId: string, status: Reservation['status']) => {
     try {
       await updateReservation(reservationId, { status });
-      setReservations(reservations.map(r =>
+      setReservations(prev => prev.map(r =>
         r.id === reservationId ? { ...r, status } : r
       ));
+      emitDataChanged('reservations');
     } catch (e) {
       console.error(e);
     }
@@ -57,9 +36,10 @@ export default function AdminReservations() {
   const markAsAttended = async (reservationId: string) => {
     try {
       await updateReservation(reservationId, { attended: true, status: 'completed' });
-      setReservations(reservations.map(r =>
+      setReservations(prev => prev.map(r =>
         r.id === reservationId ? { ...r, attended: true, status: 'completed' as const } : r
       ));
+      emitDataChanged('reservations');
     } catch (e) {
       console.error(e);
     }
